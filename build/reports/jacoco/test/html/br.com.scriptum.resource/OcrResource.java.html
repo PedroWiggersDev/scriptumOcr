@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OcrResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scriptum-ocr</a> &gt; <a href="index.source.html" class="el_package">br.com.scriptum.resource</a> &gt; <span class="el_source">OcrResource.java</span></div><h1>OcrResource.java</h1><pre class="source lang-java linenums">package br.com.scriptum.resource;
+
+import br.com.scriptum.DTO.request.OcrRequest;
+import br.com.scriptum.DTO.response.OcrResponse;
+import br.com.scriptum.service.OcrService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.vertx.core.json.JsonObject;
+import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.jboss.logging.Logger;
+
+@Path(&quot;/ocr&quot;)
+@Consumes(MediaType.APPLICATION_JSON)
+@Produces(MediaType.APPLICATION_JSON)
+<span class="fc" id="L26">public class OcrResource {</span>
+
+<span class="fc" id="L28">    private static final Logger LOG = Logger.getLogger(OcrResource.class);</span>
+
+    @Inject
+    OcrService ocrService;
+
+    @Inject
+    ObjectMapper objectMapper;
+
+    @Inject
+    @Channel(&quot;ocr-reading-return&quot;)
+    Emitter&lt;String&gt; returnEmitter;
+
+    /**
+     * Processa uma solicitação de OCR de forma síncrona e publica sua resposta.
+     *
+     * @param requisicao solicitação com identificador, idioma e imagem do documento
+     * @return resposta do OCR ou HTTP 400 quando a imagem for inválida
+     */
+    @POST
+    public Response processar(@Valid OcrRequest requisicao) {
+<span class="fc" id="L48">        LOG.infof(&quot;Iniciando processamento OCR do documento %d no idioma %s&quot;,</span>
+<span class="fc" id="L49">                requisicao.documentId(), requisicao.language());</span>
+        try {
+<span class="fc" id="L51">            OcrResponse resposta = ocrService.processar(requisicao);</span>
+<span class="fc" id="L52">            enviar(returnEmitter, resposta);</span>
+<span class="fc" id="L53">            LOG.infof(&quot;Processamento OCR concluído para o documento %d: %d parágrafo(s), confiança %.2f&quot;,</span>
+<span class="fc" id="L54">                    resposta.documentId(), resposta.paragraphs().size(), resposta.confidence());</span>
+<span class="fc" id="L55">            return Response.ok(resposta).build();</span>
+<span class="fc" id="L56">        } catch (IllegalArgumentException exception) {</span>
+<span class="fc" id="L57">            LOG.warnf(&quot;Solicitação OCR inválida para o documento %d: %s&quot;,</span>
+<span class="fc" id="L58">                    requisicao.documentId(), exception.getMessage());</span>
+<span class="fc" id="L59">            return Response.status(Response.Status.BAD_REQUEST)</span>
+<span class="fc" id="L60">                    .entity(exception.getMessage())</span>
+<span class="fc" id="L61">                    .build();</span>
+        }
+    }
+
+    /**
+     * Processa uma solicitação de OCR recebida pelo RabbitMQ.
+     *
+     * @param carga mensagem JSON contendo a solicitação de OCR
+     */
+    @Incoming(&quot;ocr-processing&quot;)
+    @Blocking
+    public void processarDaFila(JsonObject carga) {
+<span class="fc" id="L73">        LOG.info(carga.encode());</span>
+<span class="fc" id="L74">        LOG.info(&quot;Mensagem recebida na fila ocr-processing&quot;);</span>
+        try {
+<span class="fc" id="L76">            OcrRequest requisicao = objectMapper.readValue(carga.encode(), OcrRequest.class);</span>
+<span class="fc" id="L77">            OcrResponse resposta = ocrService.processar(requisicao);</span>
+<span class="fc" id="L78">            enviar(returnEmitter, resposta);</span>
+<span class="fc" id="L79">            LOG.infof(&quot;Mensagem da fila processada para o documento %d&quot;, resposta.documentId());</span>
+<span class="fc" id="L80">        } catch (JsonProcessingException exception) {</span>
+<span class="fc" id="L81">            LOG.warn(&quot;Mensagem inválida recebida na fila ocr-processing&quot;, exception);</span>
+<span class="fc" id="L82">            throw new IllegalArgumentException(&quot;mensagem inválida na fila de OCR&quot;, exception);</span>
+<span class="nc" id="L83">        } catch (Throwable t) {</span>
+<span class="nc" id="L84">            LOG.error(&quot;ERRO FATAL E INVISÍVEL NO OCR:&quot;, t);</span>
+<span class="nc" id="L85">            throw new RuntimeException(t);</span>
+<span class="fc" id="L86">        }</span>
+<span class="fc" id="L87">    }</span>
+
+    /**
+     * Serializa e publica uma mensagem no canal RabbitMQ configurado.
+     *
+     * @param emissor emissor de mensagens de destino
+     * @param carga objeto que será serializado
+     */
+    private void enviar(Emitter&lt;String&gt; emissor, Object carga) {
+        try {
+<span class="fc" id="L97">            emissor.send(objectMapper.writeValueAsString(carga));</span>
+<span class="fc" id="L98">        } catch (JsonProcessingException exception) {</span>
+<span class="fc" id="L99">            LOG.error(&quot;Não foi possível serializar a resposta OCR&quot;, exception);</span>
+<span class="fc" id="L100">            throw new IllegalStateException(</span>
+                    &quot;não foi possível serializar a mensagem de OCR&quot;, exception);
+<span class="fc" id="L102">        }</span>
+<span class="fc" id="L103">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

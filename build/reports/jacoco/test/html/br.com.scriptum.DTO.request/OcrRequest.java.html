@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OcrRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scriptum-ocr</a> &gt; <a href="index.source.html" class="el_package">br.com.scriptum.DTO.request</a> &gt; <span class="el_source">OcrRequest.java</span></div><h1>OcrRequest.java</h1><pre class="source lang-java linenums">package br.com.scriptum.DTO.request;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+
+/**
+ * Representa uma solicitação de leitura de documento.
+ *
+ * @param documentId identificador do documento
+ * @param language idioma do documento, limitado a por ou eng
+ * @param imageBase64 imagem codificada em Base64
+ */
+public record OcrRequest(
+        @NotNull Long documentId,
+        @NotBlank
+        @Pattern(regexp = &quot;por|eng&quot;, message = &quot;language deve ser por ou eng&quot;)
+        String language,
+        @NotBlank String imageBase64
+) {
+<span class="fc" id="L21">    public OcrRequest {</span>
+<span class="pc bpc" id="L22" title="2 of 4 branches missed.">        if (documentId == null || documentId &lt; 0) {</span>
+<span class="nc" id="L23">            throw new IllegalArgumentException(&quot;documentId deve ser um long não negativo&quot;);</span>
+        }
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (language != null) {</span>
+<span class="fc" id="L26">            language = language.toLowerCase(java.util.Locale.ROOT);</span>
+        }
+<span class="fc" id="L28">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

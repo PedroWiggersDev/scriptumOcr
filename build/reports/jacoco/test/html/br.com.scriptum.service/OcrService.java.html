@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OcrService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scriptum-ocr</a> &gt; <a href="index.source.html" class="el_package">br.com.scriptum.service</a> &gt; <span class="el_source">OcrService.java</span></div><h1>OcrService.java</h1><pre class="source lang-java linenums">package br.com.scriptum.service;
+
+import br.com.scriptum.DTO.request.OcrRequest;
+import br.com.scriptum.DTO.response.OcrResponse;
+import br.com.scriptum.service.decodificaImagem.DecodificadorImagem;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import net.sourceforge.tess4j.Tesseract;
+import net.sourceforge.tess4j.TesseractException;
+import net.sourceforge.tess4j.Word;
+import org.jboss.logging.Logger;
+
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.OptionalDouble;
+
+@ApplicationScoped
+public class OcrService {
+
+<span class="fc" id="L25">    private static final Logger LOG = Logger.getLogger(OcrService.class);</span>
+
+    private final DecodificadorImagem decodificadorImagem;
+    private Tesseract motorOcr;
+
+    /**
+     * Cria o serviço com o componente responsável por decodificar imagens.
+     *
+     * @param decodificadorImagem decodificador de imagens Base64
+     */
+<span class="nc" id="L35">    public OcrService(DecodificadorImagem decodificadorImagem) {</span>
+<span class="nc" id="L36">        this.decodificadorImagem = decodificadorImagem;</span>
+<span class="nc" id="L37">    }</span>
+
+    /**
+     * Inicializa o Tesseract e copia os arquivos de idioma suportados.
+     */
+    @PostConstruct
+    void inicializar() {
+<span class="nc" id="L44">        LOG.info(&quot;Inicializando o motor OCR Tesseract&quot;);</span>
+        try {
+<span class="nc" id="L46">            Path caminhoDadosTesseract = Files.createTempDirectory(&quot;scriptum-tessdata&quot;);</span>
+<span class="nc" id="L47">            copiarRecurso(&quot;tessdata/por.traineddata&quot;, caminhoDadosTesseract);</span>
+<span class="nc" id="L48">            copiarRecurso(&quot;tessdata/eng.traineddata&quot;, caminhoDadosTesseract);</span>
+
+<span class="nc" id="L50">            motorOcr = new Tesseract();</span>
+<span class="nc" id="L51">            motorOcr.setDatapath(caminhoDadosTesseract.toString());</span>
+<span class="nc" id="L52">            motorOcr.setLanguage(&quot;por+eng&quot;);</span>
+<span class="nc" id="L53">            LOG.info(&quot;Motor OCR Tesseract inicializado com os idiomas por e eng&quot;);</span>
+<span class="nc" id="L54">        } catch (IOException exception) {</span>
+<span class="nc" id="L55">            LOG.fatal(&quot;Falha fatal ao inicializar os dados do motor OCR Tesseract&quot;, exception);</span>
+<span class="nc" id="L56">            throw new IllegalStateException(</span>
+                    &quot;não foi possível inicializar o OCR Tesseract&quot;, exception);
+<span class="nc" id="L58">        }</span>
+<span class="nc" id="L59">    }</span>
+
+    /**
+     * Decodifica uma imagem Base64 e executa o OCR no idioma solicitado.
+     *
+     * @param requisicao solicitação com os dados do documento e da imagem
+     * @return resposta com os parágrafos e a confiança da leitura
+     */
+    public OcrResponse processar(OcrRequest requisicao) {
+<span class="nc" id="L68">        LOG.debugf(&quot;Decodificando imagem do documento %d&quot;, requisicao.documentId());</span>
+<span class="nc" id="L69">        BufferedImage imagem = decodificadorImagem.decodificar(requisicao.imageBase64());</span>
+<span class="nc" id="L70">        return processarImagem(requisicao.documentId(), requisicao.language(), imagem);</span>
+    }
+
+    /**
+     * Executa o OCR em uma imagem já decodificada.
+     *
+     * @param idDocumento identificador do documento
+     * @param idioma idioma do OCR
+     * @param imagem imagem decodificada
+     * @return resposta com os parágrafos e a confiança da leitura
+     */
+    public synchronized OcrResponse processarImagem(
+            long idDocumento, String idioma, BufferedImage imagem) {
+        try {
+<span class="nc" id="L84">            motorOcr.setLanguage(idioma);</span>
+<span class="nc" id="L85">            String texto = motorOcr.doOCR(imagem);</span>
+<span class="nc" id="L86">            List&lt;String&gt; paragrafos = dividirParagrafos(texto);</span>
+<span class="nc" id="L87">            OptionalDouble confianca = motorOcr.getWords(imagem, 3).stream()</span>
+<span class="nc" id="L88">                    .mapToDouble(Word::getConfidence)</span>
+<span class="nc" id="L89">                    .average();</span>
+<span class="nc" id="L90">            OcrResponse resposta = new OcrResponse(idDocumento, paragrafos, confianca.orElse(0));</span>
+<span class="nc" id="L91">            LOG.infof(&quot;OCR concluído para o documento %d: %d parágrafo(s), confiança %.2f&quot;,</span>
+<span class="nc" id="L92">                    idDocumento, paragrafos.size(), resposta.confidence());</span>
+<span class="nc" id="L93">            return resposta;</span>
+<span class="nc" id="L94">        } catch (TesseractException exception) {</span>
+<span class="nc" id="L95">            LOG.errorf(exception, &quot;Falha ao executar OCR no documento %d&quot;, idDocumento);</span>
+<span class="nc" id="L96">            throw new IllegalStateException(</span>
+                    &quot;não foi possível processar a imagem com o Tesseract&quot;, exception);
+        }
+    }
+
+    /**
+     * Divide o texto do OCR em parágrafos não vazios e sem espaços excedentes.
+     *
+     * @param texto texto bruto retornado pelo OCR
+     * @return parágrafos extraídos
+     */
+    public static List&lt;String&gt; dividirParagrafos(String texto) {
+<span class="nc" id="L108">        return Arrays.stream(texto.split(&quot;\\R\\s*\\R&quot;))</span>
+<span class="nc" id="L109">                .map(String::trim)</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                .filter(paragrafo -&gt; !paragrafo.isEmpty())</span>
+<span class="nc" id="L111">                .toList();</span>
+    }
+
+    /**
+     * Copia um recurso de idioma do Tesseract para o diretório de dados.
+     *
+     * @param nomeRecurso nome do recurso no classpath
+     * @param destino diretório de destino
+     * @throws IOException quando o recurso não pode ser lido ou copiado
+     */
+    private void copiarRecurso(String nomeRecurso, Path destino) throws IOException {
+<span class="nc" id="L122">        String nomeArquivo = Path.of(nomeRecurso).getFileName().toString();</span>
+<span class="nc" id="L123">        Path destinoArquivo = destino.resolve(nomeArquivo);</span>
+
+<span class="nc" id="L125">        try (InputStream entrada = getClass().getClassLoader()</span>
+<span class="nc" id="L126">                .getResourceAsStream(nomeRecurso)) {</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            if (entrada == null) {</span>
+<span class="nc" id="L128">                throw new IOException(&quot;recurso do Tesseract não encontrado: &quot; + nomeRecurso);</span>
+            }
+<span class="nc" id="L130">            Files.copy(entrada, destinoArquivo);</span>
+        }
+<span class="nc" id="L132">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

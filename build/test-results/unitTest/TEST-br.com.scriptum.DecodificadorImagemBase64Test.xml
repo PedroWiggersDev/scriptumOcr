@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="br.com.scriptum.DecodificadorImagemBase64Test" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-17T21:36:57.299Z" hostname="MacBook-Air-de-Pedro.local" time="0.045">
+  <properties/>
+  <testcase name="rejeitaBase64Invalido()" classname="br.com.scriptum.DecodificadorImagemBase64Test" time="0.008"/>
+  <testcase name="rejeitaBase64QueNaoRepresentaImagem()" classname="br.com.scriptum.DecodificadorImagemBase64Test" time="0.033"/>
+  <system-out><![CDATA[[UNITÁRIO] Iniciando teste: rejeitaBase64Invalido()
+?[33m18:36:57.309 WARN ?[0m Imagem recebida com Base64 inválido
+?[0m[UNITÁRIO] Teste CONCLUÍDO: rejeitaBase64Invalido()
+[UNITÁRIO] Iniciando teste: rejeitaBase64QueNaoRepresentaImagem()
+?[33m18:36:57.344 WARN ?[0m Imagem recebida não possui um formato reconhecido
+?[0m[UNITÁRIO] Teste CONCLUÍDO: rejeitaBase64QueNaoRepresentaImagem()
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

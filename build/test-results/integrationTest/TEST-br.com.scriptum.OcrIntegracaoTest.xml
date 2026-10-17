@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="br.com.scriptum.OcrIntegracaoTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-17T21:16:34.358Z" hostname="MacBook-Air-de-Pedro.local" time="2.484">
+  <properties/>
+  <testcase name="processaSolicitacaoPeloEndpointRest()" classname="br.com.scriptum.OcrIntegracaoTest" time="1.653"/>
+  <testcase name="processaMensagemDeEntradaEPublicaRespostaNaFilaDeRetorno()" classname="br.com.scriptum.OcrIntegracaoTest" time="0.171"/>
+  <system-out><![CDATA[?[0m18:16:34.503 INFO ?[0m HV000001: Hibernate Validator 9.1.3.Final
+?[0m?[0m18:16:34.902 INFO ?[0m scriptum-ocr 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.39.2) started in 2.321s. Listening on: http://0.0.0.0:8081
+?[0m?[0m18:16:34.903 INFO ?[0m Profile test activated. 
+?[0m?[0m18:16:34.903 INFO ?[0m Installed features: [cdi, compose, hibernate-validator, messaging, messaging-rabbitmq, micrometer, rest, rest-jackson, smallrye-context-propagation, smallrye-health, smallrye-openapi, swagger-ui, vertx]
+?[0m[INTEGRAÇÃO] Iniciando teste: processaSolicitacaoPeloEndpointRest()
+?[0m18:16:35.672 INFO ?[0m Iniciando processamento OCR do documento 7357 no idioma eng
+?[0m?[0m18:16:35.673 INFO ?[0m Inicializando o motor OCR Tesseract
+?[0m?[0m18:16:35.710 INFO ?[0m Motor OCR Tesseract inicializado com os idiomas por e eng
+?[0m?[0m18:16:36.388 INFO ?[0m OCR concluído para o documento 7357: 1 parágrafo(s), confiança 91,85
+?[0m?[0m18:16:36.400 INFO ?[0m Processamento OCR concluído para o documento 7357: 1 parágrafo(s), confiança 91,85
+?[0m[INTEGRAÇÃO] Teste CONCLUÍDO: processaSolicitacaoPeloEndpointRest()
+[INTEGRAÇÃO] Iniciando teste: processaMensagemDeEntradaEPublicaRespostaNaFilaDeRetorno()
+?[0m18:16:36.786 INFO ?[0m OCR concluído para o documento 7357: 1 parágrafo(s), confiança 91,85
+?[0m?[0m18:16:36.787 INFO ?[0m Mensagem da fila processada para o documento 7357
+?[0m[INTEGRAÇÃO] Teste CONCLUÍDO: processaMensagemDeEntradaEPublicaRespostaNaFilaDeRetorno()
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

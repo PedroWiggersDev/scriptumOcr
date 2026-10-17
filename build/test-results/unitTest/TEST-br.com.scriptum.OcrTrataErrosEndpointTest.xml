@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="br.com.scriptum.OcrTrataErrosEndpointTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-17T21:36:58.790Z" hostname="MacBook-Air-de-Pedro.local" time="0.019">
+  <properties/>
+  <testcase name="retornaBadRequestQuandoOProcessamentoRecebeEntradaInvalida()" classname="br.com.scriptum.OcrTrataErrosEndpointTest" time="0.016"/>
+  <testcase name="propagaFalhaQuandoNaoConseguePublicarResposta()" classname="br.com.scriptum.OcrTrataErrosEndpointTest" time="0.002"/>
+  <system-out><![CDATA[[UNITÁRIO] Iniciando teste: retornaBadRequestQuandoOProcessamentoRecebeEntradaInvalida()
+?[0m18:36:58.793 INFO ?[0m Iniciando processamento OCR do documento 10 no idioma por
+?[0m?[33m18:36:58.793 WARN ?[0m Solicitação OCR inválida para o documento 10: imagem inválida
+?[0m[UNITÁRIO] Teste CONCLUÍDO: retornaBadRequestQuandoOProcessamentoRecebeEntradaInvalida()
+[UNITÁRIO] Iniciando teste: propagaFalhaQuandoNaoConseguePublicarResposta()
+?[0m18:36:58.809 INFO ?[0m Iniciando processamento OCR do documento 10 no idioma por
+?[0m[UNITÁRIO] Teste CONCLUÍDO: propagaFalhaQuandoNaoConseguePublicarResposta()
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

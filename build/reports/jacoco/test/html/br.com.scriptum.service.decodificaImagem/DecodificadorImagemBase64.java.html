@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="pt"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DecodificadorImagemBase64.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scriptum-ocr</a> &gt; <a href="index.source.html" class="el_package">br.com.scriptum.service.decodificaImagem</a> &gt; <span class="el_source">DecodificadorImagemBase64.java</span></div><h1>DecodificadorImagemBase64.java</h1><pre class="source lang-java linenums">package br.com.scriptum.service.decodificaImagem;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.Base64;
+
+/**
+ * Decodifica imagens Base64 usando as extensões de imagem disponíveis na JVM.
+ */
+@ApplicationScoped
+<span class="fc" id="L16">public class DecodificadorImagemBase64 implements DecodificadorImagem {</span>
+
+<span class="fc" id="L18">    private static final Logger LOG = Logger.getLogger(DecodificadorImagemBase64.class);</span>
+
+    /**
+     * Converte o conteúdo Base64 em uma imagem.
+     *
+     * @param imagemBase64 imagem codificada em Base64
+     * @return imagem decodificada
+     */
+    @Override
+    public BufferedImage decodificar(String imagemBase64) {
+        final byte[] bytes;
+        try {
+<span class="fc" id="L30">            bytes = Base64.getDecoder().decode(imagemBase64);</span>
+<span class="fc" id="L31">        } catch (IllegalArgumentException exception) {</span>
+<span class="fc" id="L32">            LOG.warn(&quot;Imagem recebida com Base64 inválido&quot;);</span>
+<span class="fc" id="L33">            throw new IllegalArgumentException(&quot;imagemBase64 não é um Base64 válido&quot;, exception);</span>
+<span class="fc" id="L34">        }</span>
+
+<span class="fc" id="L36">        try (ByteArrayInputStream entrada = new ByteArrayInputStream(bytes)) {</span>
+<span class="fc" id="L37">            BufferedImage imagem = ImageIO.read(entrada);</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            if (imagem == null) {</span>
+<span class="fc" id="L39">                LOG.warn(&quot;Imagem recebida não possui um formato reconhecido&quot;);</span>
+<span class="fc" id="L40">                throw new IllegalArgumentException(&quot;imagemBase64 não contém uma imagem válida&quot;);</span>
+            }
+<span class="fc" id="L42">            return imagem;</span>
+<span class="nc" id="L43">        } catch (IOException exception) {</span>
+<span class="nc" id="L44">            LOG.error(&quot;Falha ao ler a imagem recebida&quot;, exception);</span>
+<span class="nc" id="L45">            throw new IllegalArgumentException(&quot;não foi possível ler a imagem&quot;, exception);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>
