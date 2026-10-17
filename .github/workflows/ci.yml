@@ -3,7 +3,6 @@ name: Integração contínua
 on:
   push:
     branches:
-      - main
       - develop
   pull_request:
   workflow_dispatch:
