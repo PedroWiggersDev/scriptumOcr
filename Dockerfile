@@ -6,7 +6,7 @@ WORKDIR /workspace
 
 COPY --chmod=755 gradlew gradlew
 COPY gradle gradle
-COPY build.gradle settings.gradle gradle.properties VERSION ./
+COPY build.gradle settings.gradle gradle.properties ./
 RUN sed -i 's/\r$//' gradlew
 RUN ./gradlew --no-daemon dependencies
 
@@ -16,7 +16,6 @@ RUN ./gradlew --no-daemon clean build -x test
 FROM eclipse-temurin:21-jre-noble AS runtime
 
 ENV JAVA_TOOL_OPTIONS="-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=75.0"
-ENV PORT=8080
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
@@ -38,6 +37,6 @@ USER scriptum
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl --fail --silent "http://localhost:${PORT}/q/health/ready" || exit 1
+    CMD curl --fail --silent http://localhost:8080/q/health/ready || exit 1
 
 ENTRYPOINT ["java", "-jar", "quarkus-run.jar"]
