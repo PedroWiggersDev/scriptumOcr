@@ -133,9 +133,9 @@ jacocoTestReport {
     }
 }
 
-tasks.register('jacocoUnitTestReport', JacocoReport) {
-    dependsOn tasks.named('unitTest')
-    executionData tasks.named('unitTest').get()
+tasks.register('jacocoSonarReport', JacocoReport) {
+    dependsOn tasks.named('unitTest'), tasks.named('integrationTest')
+    executionData tasks.named('unitTest').get(), tasks.named('integrationTest').get()
     sourceSets sourceSets.main
     reports {
         html.required = true

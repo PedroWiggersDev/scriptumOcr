@@ -215,8 +215,10 @@ build/reports/tests/integrationTest/index.html
 O workflow [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) segue este
 fluxo:
 
-- Em cada push para `develop`, executa testes unitários, gera cobertura
-  JaCoCo, compila o pacote Quarkus e aguarda o quality gate do SonarCloud.
+- Em cada push para `develop`, executa testes unitários e de integração,
+  agrega a cobertura JaCoCo, compila o pacote Quarkus e aguarda o quality gate
+  do SonarCloud. O scanner recebe o relatório JaCoCo agregado e os relatórios
+  XML do JUnit para unitários e integração.
   Após sucesso, publica a imagem no Docker Hub e implanta em homologação no
   Render usando o digest exato da imagem construída.
 - Em pull requests para `develop`, executa os testes, build e, quando os

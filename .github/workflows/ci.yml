@@ -38,8 +38,18 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Executar testes unitários, cobertura e build Quarkus
-        run: ./gradlew --no-daemon unitTest jacocoUnitTestReport quarkusBuild
+      - name: Instalar dependências nativas do Tesseract
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libleptonica-dev \
+            libtesseract-dev \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            tesseract-ocr-por
+
+      - name: Executar testes unitários, de integração, cobertura e build Quarkus
+        run: ./gradlew --no-daemon unitTest integrationTest jacocoSonarReport quarkusBuild
 
       - name: Publicar relatórios de testes e cobertura
         if: always()
@@ -49,7 +59,8 @@ jobs:
           if-no-files-found: ignore
           path: |
             build/reports/tests/unitTest/
-            build/reports/jacoco/jacocoUnitTestReport/
+            build/reports/tests/integrationTest/
+            build/reports/jacoco/jacocoSonarReport/
 
       - name: Analisar e validar qualidade no SonarCloud
         if: ${{ github.event_name == 'push' || (env.SONAR_TOKEN != '' && env.SONAR_PROJECT_KEY != '' && env.SONAR_ORGANIZATION != '') }}
@@ -66,7 +77,8 @@ jobs:
             -Dsonar.tests=src/test/java
             -Dsonar.java.binaries=build/classes/java/main
             -Dsonar.java.test.binaries=build/classes/java/test
-            -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/jacocoUnitTestReport/jacocoUnitTestReport.xml
+            -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/jacocoSonarReport/jacocoSonarReport.xml
+            -Dsonar.junit.reportPaths=build/test-results/unitTest,build/test-results/integrationTest
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.qualitygate.wait=true
 
