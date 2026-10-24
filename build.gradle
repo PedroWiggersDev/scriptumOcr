@@ -35,36 +35,20 @@ tasks.register('integrationTest', Test) {
 tasks.withType(Test).configureEach {
     testLogging {
         events 'started', 'passed', 'skipped', 'failed'
-        exceptionFormat = 'full'
+        exceptionFormat 'full'
         showExceptions = true
         showCauses = true
         showStackTraces = true
         showStandardStreams = true
     }
-    addTestListener(new org.gradle.api.tasks.testing.TestListener() {
-        @Override
-        void beforeSuite(org.gradle.api.tasks.testing.TestDescriptor descriptor) {}
-
-        @Override
-        void afterSuite(
-                org.gradle.api.tasks.testing.TestDescriptor descriptor,
-                org.gradle.api.tasks.testing.TestResult result) {
-            if (!descriptor.parent) {
-                println("\nTestes: ${result.testCount} | "
-                        + "passaram: ${result.successfulTestCount} | "
-                        + "falharam: ${result.failedTestCount} | "
-                        + "ignorados: ${result.skippedTestCount}")
-            }
+    afterSuite { descriptor, result ->
+        if (!descriptor.parent) {
+            println("\nTestes: ${result.testCount} | "
+                    + "passaram: ${result.successfulTestCount} | "
+                    + "falharam: ${result.failedTestCount} | "
+                    + "ignorados: ${result.skippedTestCount}")
         }
-
-        @Override
-        void beforeTest(org.gradle.api.tasks.testing.TestDescriptor descriptor) {}
-
-        @Override
-        void afterTest(
-                org.gradle.api.tasks.testing.TestDescriptor descriptor,
-                org.gradle.api.tasks.testing.TestResult result) {}
-    })
+    }
 }
 
 dependencies {

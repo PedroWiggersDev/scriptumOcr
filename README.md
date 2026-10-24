@@ -356,7 +356,6 @@ Configure no `.env` ou no ambiente de execução:
 | `RABBITMQ_URL` | `rabbitmq:5672` no Compose; `localhost:5672` fora dele |
 | `RABBITMQ_USERNAME` | Obrigatório no Compose |
 | `RABBITMQ_PASSWORD` | Obrigatório no Compose |
-| `PORT` | `8080` local; definido pelo Render no serviço hospedado |
 | `RABBITMQ_AMQP_PORT` | `5672` (porta publicada no host) |
 | `RABBITMQ_MANAGEMENT_PORT` | `15672` |
 | `OCR_HTTP_PORT` | `8080` |
