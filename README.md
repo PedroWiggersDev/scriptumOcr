@@ -215,22 +215,21 @@ build/reports/tests/integrationTest/index.html
 O workflow [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) segue este
 fluxo:
 
-- Pushes ou merges para `develop` não executam nenhuma action.
-- Ao abrir ou atualizar um pull request, nenhuma action é executada. Depois
-  que ele é integrado a `main`, o push resultante executa testes unitários e de
-  integração, agrega a cobertura JaCoCo, compila o pacote Quarkus e aguarda o
-  quality gate do SonarCloud. O scanner recebe o relatório JaCoCo agregado e
-  os relatórios XML do JUnit. Após sucesso, publica no Docker Hub as tags
-  `v<versão>`, `v<versão>-homologacao` e `sha-<commit>`, e implanta em
-  homologação no Render usando o digest exato dessa imagem.
+- Pushes ou merges para `develop` e a abertura/atualização de pull requests
+  não executam actions.
+- Em cada merge para `main`, executa testes unitários e de integração, agrega
+  a cobertura JaCoCo, compila o pacote Quarkus e aguarda o quality gate do
+  SonarCloud. Após sucesso, publica a imagem no Docker Hub com a versão de
+  `VERSION` e implanta em homologação usando o digest exato da imagem.
 - Em cada push para uma branch `release/**`, não executa testes nem rebuild:
-  valida que a imagem `v<versão>` publicada no merge para `main` existe no
-  Docker Hub e manda o Render de produção implantar essa imagem.
+  verifica se a imagem versionada já existe no Docker Hub e implanta essa
+  versão em produção.
 
 A versão SemVer vem do arquivo [`VERSION`](./VERSION), por exemplo `1.2.3`.
-Atualize-o manualmente para cada release. A imagem de produção usa `v<versão>`
-criada em `main`; portanto, mantenha o mesmo `VERSION` na branch de release e
-só a integre após a imagem correspondente ter sido publicada. Metadados SemVer
+Atualize-o manualmente para cada release. No merge para `main`, o Docker Hub
+recebe `v<versão>`, `v<versão>-homologacao` e `sha-<commit>`. O Render de
+homologação usa o digest da imagem daquele workflow; produção usa `v<versão>`.
+Mantenha a mesma versão no merge da branch `release/**`. Metadados SemVer
 (`+build`) são omitidos das tags Docker.
 
 Configure no GitHub, em **Settings → Secrets and variables → Actions**:
@@ -247,18 +246,17 @@ Configure no GitHub, em **Settings → Secrets and variables → Actions**:
 
 Configure os dois serviços Render como serviços de imagem Docker usando o
 repositório `docker.io/<DOCKERHUB_USERNAME>/scriptum-ocr`; o workflow informa
-a tag ou digest a cada deploy. Se o repositório Docker Hub for privado,
+a tag ou digest a cada deploy. O registry e o repositório configurados no Render
+devem corresponder exatamente a esse endereço; somente a tag ou o digest podem
+mudar na chamada do deploy hook. Se o repositório Docker Hub for privado,
 configure também as credenciais de pull no Render. O fluxo de `main` falha
 explicitamente quando faltam credenciais ou o quality gate do SonarCloud não
-passa. O deploy de produção também falha explicitamente quando a versão ainda
-não existe no Docker Hub.
+passa. O deploy de produção falha explicitamente quando a versão ainda não
+existe no Docker Hub.
 
-Para que o pipeline rode somente após merge de pull requests, proteja as
-branches `develop`, `main` e `release/**` nas regras do GitHub e exija pull
-request para integrá-las; o gatilho de push também executa se alguém fizer push
-direto. `develop` não inicia actions, `main` verifica a qualidade, publica a
-imagem e implanta em homologação, e `release/**` promove para produção a imagem
-publicada em `main`.
+Proteja `main` e `release/**` no GitHub e exija pull request para integrá-las.
+O gatilho de push também executa se alguém fizer push direto. A branch
+`develop` não está nos gatilhos do workflow.
 
 Em cada serviço Render, configure `RABBITMQ_URL`, `RABBITMQ_USERNAME` e
 `RABBITMQ_PASSWORD` com as credenciais do broker correspondente ao ambiente.
@@ -356,6 +354,7 @@ Configure no `.env` ou no ambiente de execução:
 | `RABBITMQ_URL` | `rabbitmq:5672` no Compose; `localhost:5672` fora dele |
 | `RABBITMQ_USERNAME` | Obrigatório no Compose |
 | `RABBITMQ_PASSWORD` | Obrigatório no Compose |
+| `PORT` | `8080` local; definido pelo Render no serviço hospedado |
 | `RABBITMQ_AMQP_PORT` | `5672` (porta publicada no host) |
 | `RABBITMQ_MANAGEMENT_PORT` | `15672` |
 | `OCR_HTTP_PORT` | `8080` |
