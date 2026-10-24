@@ -215,24 +215,23 @@ build/reports/tests/integrationTest/index.html
 O workflow [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) segue este
 fluxo:
 
-- Em cada push para `develop`, executa testes unitários e de integração,
-  agrega a cobertura JaCoCo, compila o pacote Quarkus e aguarda o quality gate
-  do SonarCloud. O scanner recebe o relatório JaCoCo agregado e os relatórios
-  XML do JUnit para unitários e integração.
-  Após sucesso, publica a imagem no Docker Hub e implanta em homologação no
-  Render usando o digest exato da imagem construída.
-- Em pull requests para `develop`, executa os testes, build e, quando os
-  secrets do SonarCloud estiverem disponíveis, a análise de qualidade.
-- Em cada push para `main`, não executa testes nem rebuild: valida que a tag
-  Docker da versão já foi publicada em `develop` e manda o Render de produção
-  implantar essa versão.
+- Pushes ou merges para `develop` não executam nenhuma action.
+- Ao abrir ou atualizar um pull request, nenhuma action é executada. Depois
+  que ele é integrado a `main`, o push resultante executa testes unitários e de
+  integração, agrega a cobertura JaCoCo, compila o pacote Quarkus e aguarda o
+  quality gate do SonarCloud. O scanner recebe o relatório JaCoCo agregado e
+  os relatórios XML do JUnit. Após sucesso, publica no Docker Hub as tags
+  `v<versão>`, `v<versão>-homologacao` e `sha-<commit>`, e implanta em
+  homologação no Render usando o digest exato dessa imagem.
+- Em cada push para uma branch `release/**`, não executa testes nem rebuild:
+  valida que a imagem `v<versão>` publicada no merge para `main` existe no
+  Docker Hub e manda o Render de produção implantar essa imagem.
 
 A versão SemVer vem do arquivo [`VERSION`](./VERSION), por exemplo `1.2.3`.
-Atualize-o manualmente para cada release. Em `develop`, o Docker Hub recebe
-`v<versão>`, `v<versão>-develop` e `sha-<commit>`. O Render de homologação
-usa o digest da imagem daquele workflow; produção usa `v<versão>`. Portanto,
-promova para `main` somente uma versão que já tenha sido publicada a partir de
-`develop`. Metadados SemVer (`+build`) são omitidos das tags Docker.
+Atualize-o manualmente para cada release. A imagem de produção usa `v<versão>`
+criada em `main`; portanto, mantenha o mesmo `VERSION` na branch de release e
+só a integre após a imagem correspondente ter sido publicada. Metadados SemVer
+(`+build`) são omitidos das tags Docker.
 
 Configure no GitHub, em **Settings → Secrets and variables → Actions**:
 
@@ -249,10 +248,17 @@ Configure no GitHub, em **Settings → Secrets and variables → Actions**:
 Configure os dois serviços Render como serviços de imagem Docker usando o
 repositório `docker.io/<DOCKERHUB_USERNAME>/scriptum-ocr`; o workflow informa
 a tag ou digest a cada deploy. Se o repositório Docker Hub for privado,
-configure também as credenciais de pull no Render. Pushes para `develop`
-falham explicitamente quando faltam credenciais ou o quality gate do SonarCloud
-não passa. A publicação e o deploy de produção também falham explicitamente
-quando a versão ainda não existe no Docker Hub.
+configure também as credenciais de pull no Render. O fluxo de `main` falha
+explicitamente quando faltam credenciais ou o quality gate do SonarCloud não
+passa. O deploy de produção também falha explicitamente quando a versão ainda
+não existe no Docker Hub.
+
+Para que o pipeline rode somente após merge de pull requests, proteja as
+branches `develop`, `main` e `release/**` nas regras do GitHub e exija pull
+request para integrá-las; o gatilho de push também executa se alguém fizer push
+direto. `develop` não inicia actions, `main` verifica a qualidade, publica a
+imagem e implanta em homologação, e `release/**` promove para produção a imagem
+publicada em `main`.
 
 Em cada serviço Render, configure `RABBITMQ_URL`, `RABBITMQ_USERNAME` e
 `RABBITMQ_PASSWORD` com as credenciais do broker correspondente ao ambiente.
