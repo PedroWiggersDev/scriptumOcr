@@ -3,11 +3,8 @@ name: CI/CD
 on:
   push:
     branches:
-      - develop
       - main
-  pull_request:
-    branches:
-      - develop
+      - 'release/**'
 
 permissions:
   contents: read
@@ -19,7 +16,7 @@ concurrency:
 jobs:
   validar:
     name: Testes, build e SonarCloud
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'pull_request' && github.base_ref == 'develop') }}
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -63,7 +60,6 @@ jobs:
             build/reports/jacoco/jacocoSonarReport/
 
       - name: Analisar e validar qualidade no SonarCloud
-        if: ${{ github.event_name == 'push' || (env.SONAR_TOKEN != '' && env.SONAR_PROJECT_KEY != '' && env.SONAR_ORGANIZATION != '') }}
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -85,7 +81,7 @@ jobs:
   publicar-homologacao:
     name: Publicar imagem e implantar em homologação
     needs: validar
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -136,7 +132,7 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/scriptum-ocr
           tags: |
             type=raw,value=v${{ env.DOCKER_TAG_VERSION }}
-            type=raw,value=v${{ env.DOCKER_TAG_VERSION }}-develop
+            type=raw,value=v${{ env.DOCKER_TAG_VERSION }}-homologacao
             type=sha,prefix=sha-
 
       - name: Compilar e publicar imagem no Docker Hub
@@ -160,7 +156,7 @@ jobs:
             "$RENDER_DEPLOY_HOOK_URL"
   implantar-producao:
     name: Implantar versão publicada em produção
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -206,4 +202,3 @@ jobs:
           curl --fail-with-body --silent --show-error --retry 3 \
             --get --data-urlencode "imgURL=${IMAGE_URL}" \
             "$RENDER_DEPLOY_HOOK_URL"
-
