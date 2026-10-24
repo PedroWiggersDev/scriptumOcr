@@ -212,21 +212,27 @@ build/reports/tests/integrationTest/index.html
 
 ## 🔄 Integração contínua
 
-O workflow [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) executa em
-pull requests e em cada push para `develop` e `main`. A versão do projeto vem
-do arquivo [`VERSION`](./VERSION), que deve conter uma versão SemVer, por
-exemplo `1.2.3`. Incremente manualmente a versão ao preparar uma mudança:
-patch para correções compatíveis, minor para novas funcionalidades compatíveis
-e major para alterações incompatíveis.
+O workflow [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) segue este
+fluxo:
 
-O workflow roda os testes unitários, gera relatórios JaCoCo, compila o pacote
-Quarkus com a versão de `VERSION` e envia métricas ao SonarCloud (incluindo
-cobertura, bugs, vulnerabilidades, code smells e duplicação). Em pushes bem
-sucedidos para `develop`, publica `v<versão>-develop` e `sha-<commit>` no
-Docker Hub. Em pushes para `main`, publica `v<versão>`, `latest` e
-`sha-<commit>`. Caso `VERSION` use metadados SemVer (`+build`), estes são
-omitidos das tags Docker, que não aceitam o caractere `+`; a versão completa
-permanece no artefato Gradle.
+- Em cada push para `develop`, executa testes unitários e de integração,
+  agrega a cobertura JaCoCo, compila o pacote Quarkus e aguarda o quality gate
+  do SonarCloud. O scanner recebe o relatório JaCoCo agregado e os relatórios
+  XML do JUnit para unitários e integração.
+  Após sucesso, publica a imagem no Docker Hub e implanta em homologação no
+  Render usando o digest exato da imagem construída.
+- Em pull requests para `develop`, executa os testes, build e, quando os
+  secrets do SonarCloud estiverem disponíveis, a análise de qualidade.
+- Em cada push para `main`, não executa testes nem rebuild: valida que a tag
+  Docker da versão já foi publicada em `develop` e manda o Render de produção
+  implantar essa versão.
+
+A versão SemVer vem do arquivo [`VERSION`](./VERSION), por exemplo `1.2.3`.
+Atualize-o manualmente para cada release. Em `develop`, o Docker Hub recebe
+`v<versão>`, `v<versão>-develop` e `sha-<commit>`. O Render de homologação
+usa o digest da imagem daquele workflow; produção usa `v<versão>`. Portanto,
+promova para `main` somente uma versão que já tenha sido publicada a partir de
+`develop`. Metadados SemVer (`+build`) são omitidos das tags Docker.
 
 Configure no GitHub, em **Settings → Secrets and variables → Actions**:
 
@@ -237,11 +243,78 @@ Configure no GitHub, em **Settings → Secrets and variables → Actions**:
 | Variable | `SONAR_ORGANIZATION` | Identificador da organização SonarCloud |
 | Secret | `DOCKERHUB_USERNAME` | Usuário ou organização do Docker Hub |
 | Secret | `DOCKERHUB_TOKEN` | Access token do Docker Hub com permissão de escrita |
+| Secret | `RENDER_STAGING_DEPLOY_HOOK_URL` | Deploy hook do serviço Render de homologação |
+| Secret | `RENDER_PRODUCTION_DEPLOY_HOOK_URL` | Deploy hook do serviço Render de produção |
 
-Os passos de análise e publicação são ignorados se seus respectivos
-parâmetros não estiverem configurados; testes e build continuam obrigatórios.
-Depois da publicação, a imagem fica disponível em
-`docker.io/<DOCKERHUB_USERNAME>/scriptum-ocr`.
+Configure os dois serviços Render como serviços de imagem Docker usando o
+repositório `docker.io/<DOCKERHUB_USERNAME>/scriptum-ocr`; o workflow informa
+a tag ou digest a cada deploy. Se o repositório Docker Hub for privado,
+configure também as credenciais de pull no Render. Pushes para `develop`
+falham explicitamente quando faltam credenciais ou o quality gate do SonarCloud
+não passa. A publicação e o deploy de produção também falham explicitamente
+quando a versão ainda não existe no Docker Hub.
+
+Em cada serviço Render, configure `RABBITMQ_URL`, `RABBITMQ_USERNAME` e
+`RABBITMQ_PASSWORD` com as credenciais do broker correspondente ao ambiente.
+`RABBITMQ_URL` deve usar o formato `host:porta` aceito pelo conector RabbitMQ;
+não inclua `amqp://`. O Render injeta `PORT` (por padrão, `10000`), que o
+serviço usa para receber tráfego HTTP. O Dockerfile mantém `8080` como padrão
+para execução local.
+
+### RabbitMQ no Render
+
+Como homologação e produção usam os mesmos nomes de filas, crie **um Web
+Service RabbitMQ para cada ambiente**; compartilhar um broker faria
+consumidores dos dois ambientes competirem pelas mesmas mensagens. O diretório
+[`rabbitmq/render`](./rabbitmq/render) contém uma imagem baseada no RabbitMQ
+com Management, configurado para usar a porta HTTP do Web Service.
+
+No Dashboard do Render, crie um **Web Service** conectado a este repositório
+para homologação e repita o processo para produção. Use a branch desejada,
+deixe **Root Directory** vazio e configure em cada serviço:
+
+- **Language:** Docker
+- **Dockerfile Path:** `rabbitmq/render/Dockerfile`
+- **Health Check Path:** `/`
+- **Instance type:** plano pago, para permitir disco persistente
+- **Disk:** mount path `/var/lib/rabbitmq`; escolha o tamanho adequado ao volume
+  esperado de mensagens e dados
+- **Environment Variables:** `RABBITMQ_DEFAULT_USER` e
+  `RABBITMQ_DEFAULT_PASS`, com credenciais fortes e exclusivas
+
+O painel Management escuta na porta HTTP `PORT` fornecida pelo Render e fica
+acessível publicamente pela URL do Web Service. A autenticação do RabbitMQ
+protege o painel; use uma senha longa e exclusiva e, se possível, restrinja
+acesso por IP nas configurações do Render. O broker recebe conexões AMQP pela
+porta `5672` na rede privada do Render; não configure um TCP proxy público
+para AMQP. Após o primeiro deploy, copie o **Service Address** exibido em
+**Connect**. No serviço OCR do mesmo workspace e região, configure
+`RABBITMQ_URL` com esse endereço e a porta, além de
+`RABBITMQ_USERNAME` e `RABBITMQ_PASSWORD` iguais às credenciais do broker.
+Crie as exchanges, filas e bindings pelo painel Management. Para cada ambiente,
+configure:
+
+1. Em **Exchanges → Add a new exchange**, crie `ocr.processing` e
+   `ocr.reading`, ambos do tipo `direct`, duráveis e sem auto-delete. Crie
+   também `ocr.processing.dlx` do tipo `direct`, durável.
+2. Em **Queues → Add a new queue**, crie a fila `ocr-processing`, durável,
+   com os argumentos:
+   `x-dead-letter-exchange` = `ocr.processing.dlx` (tipo `long string`) e
+   `x-dead-letter-routing-key` = `ocr.processing.failed` (tipo `long string`).
+3. Crie também as filas duráveis `ocr-processing-dlq` e
+   `ocr-reading-return`, sem argumentos.
+4. Em **Exchanges → selecione a exchange → Bindings**, crie:
+   `ocr.processing` → `ocr-processing`, routing key `ocr.processing`;
+   `ocr.reading` → `ocr-reading-return`, routing key `ocr.reading`; e
+   `ocr.processing.dlx` → `ocr-processing-dlq`, routing key
+   `ocr.processing.failed`.
+
+O disco persistente é necessário: sem ele os dados do broker podem ser perdidos
+em reinicializações ou novos deploys. Essa configuração é de instância única e
+não oferece alta disponibilidade gerenciada; para dados críticos de produção,
+considere um provedor RabbitMQ gerenciado. Como se trata de um Web Service,
+o painel Management fica acessível pela internet; use credenciais fortes e
+restrição de IP, se disponível.
 
 ## 🐳 Executar com Docker Compose
 
@@ -277,6 +350,7 @@ Configure no `.env` ou no ambiente de execução:
 | `RABBITMQ_URL` | `rabbitmq:5672` no Compose; `localhost:5672` fora dele |
 | `RABBITMQ_USERNAME` | Obrigatório no Compose |
 | `RABBITMQ_PASSWORD` | Obrigatório no Compose |
+| `PORT` | `8080` local; definido pelo Render no serviço hospedado |
 | `RABBITMQ_AMQP_PORT` | `5672` (porta publicada no host) |
 | `RABBITMQ_MANAGEMENT_PORT` | `15672` |
 | `OCR_HTTP_PORT` | `8080` |

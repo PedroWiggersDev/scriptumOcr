@@ -35,20 +35,36 @@ tasks.register('integrationTest', Test) {
 tasks.withType(Test).configureEach {
     testLogging {
         events 'started', 'passed', 'skipped', 'failed'
-        exceptionFormat 'full'
+        exceptionFormat = 'full'
         showExceptions = true
         showCauses = true
         showStackTraces = true
         showStandardStreams = true
     }
-    afterSuite { descriptor, result ->
-        if (!descriptor.parent) {
-            println("\nTestes: ${result.testCount} | "
-                    + "passaram: ${result.successfulTestCount} | "
-                    + "falharam: ${result.failedTestCount} | "
-                    + "ignorados: ${result.skippedTestCount}")
+    addTestListener(new org.gradle.api.tasks.testing.TestListener() {
+        @Override
+        void beforeSuite(org.gradle.api.tasks.testing.TestDescriptor descriptor) {}
+
+        @Override
+        void afterSuite(
+                org.gradle.api.tasks.testing.TestDescriptor descriptor,
+                org.gradle.api.tasks.testing.TestResult result) {
+            if (!descriptor.parent) {
+                println("\nTestes: ${result.testCount} | "
+                        + "passaram: ${result.successfulTestCount} | "
+                        + "falharam: ${result.failedTestCount} | "
+                        + "ignorados: ${result.skippedTestCount}")
+            }
         }
-    }
+
+        @Override
+        void beforeTest(org.gradle.api.tasks.testing.TestDescriptor descriptor) {}
+
+        @Override
+        void afterTest(
+                org.gradle.api.tasks.testing.TestDescriptor descriptor,
+                org.gradle.api.tasks.testing.TestResult result) {}
+    })
 }
 
 dependencies {
@@ -117,9 +133,9 @@ jacocoTestReport {
     }
 }
 
-tasks.register('jacocoUnitTestReport', JacocoReport) {
-    dependsOn tasks.named('unitTest')
-    executionData tasks.named('unitTest').get()
+tasks.register('jacocoSonarReport', JacocoReport) {
+    dependsOn tasks.named('unitTest'), tasks.named('integrationTest')
+    executionData tasks.named('unitTest').get(), tasks.named('integrationTest').get()
     sourceSets sourceSets.main
     reports {
         html.required = true
