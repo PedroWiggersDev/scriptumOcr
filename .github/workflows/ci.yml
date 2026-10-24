@@ -3,9 +3,8 @@ name: Integração contínua
 on:
   push:
     branches:
-      - develop
-  pull_request:
-  workflow_dispatch:
+      - main
+      - 'release/**'
 
 permissions:
   contents: read
@@ -15,8 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Testes unitários, build e SonarCloud
+  validar:
+    name: Testes, build e SonarCloud
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -43,8 +43,18 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Executar testes unitários, gerar cobertura e compilar
-        run: ./gradlew --no-daemon unitTest jacocoUnitTestReport quarkusBuild
+      - name: Instalar dependências nativas do Tesseract
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libleptonica-dev \
+            libtesseract-dev \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            tesseract-ocr-por
+
+      - name: Executar testes unitários, de integração, cobertura e build Quarkus
+        run: ./gradlew --no-daemon unitTest integrationTest jacocoSonarReport quarkusBuild
 
       - name: Publicar relatórios de testes e cobertura
         if: always()
@@ -54,10 +64,10 @@ jobs:
           if-no-files-found: ignore
           path: |
             build/reports/tests/unitTest/
-            build/reports/jacoco/jacocoUnitTestReport/
+            build/reports/tests/integrationTest/
+            build/reports/jacoco/jacocoSonarReport/
 
-      - name: Analisar código com SonarCloud
-        if: ${{ env.SONAR_TOKEN != '' && env.SONAR_PROJECT_KEY != '' && env.SONAR_ORGANIZATION != '' }}
+      - name: Analisar e validar qualidade no SonarCloud
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -71,8 +81,48 @@ jobs:
             -Dsonar.tests=src/test/java
             -Dsonar.java.binaries=build/classes/java/main
             -Dsonar.java.test.binaries=build/classes/java/test
-            -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/jacocoUnitTestReport/jacocoUnitTestReport.xml
+            -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/jacocoSonarReport/jacocoSonarReport.xml
+            -Dsonar.junit.reportPaths=build/test-results/unitTest,build/test-results/integrationTest
             -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.qualitygate.wait=true
+
+  publicar-homologacao:
+    name: Publicar imagem e implantar em homologação
+    needs: validar
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    outputs:
+      digest: ${{ steps.build-image.outputs.digest }}
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Ler e validar versão SemVer
+        run: |
+          VERSION="$(cat VERSION)"
+          if ! python3 - "$VERSION" <<'PY'
+          import re
+          import sys
+
+          pattern = r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$'
+          sys.exit(0 if re.fullmatch(pattern, sys.argv[1]) else 1)
+          PY
+          then
+            echo "::error::VERSION não contém uma versão SemVer válida"
+            exit 1
+          fi
+          echo "DOCKER_TAG_VERSION=${VERSION%%+*}" >> "$GITHUB_ENV"
+
+      - name: Validar credenciais do Docker Hub e Render
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          RENDER_STAGING_DEPLOY_HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
+        run: |
+          test -n "$DOCKERHUB_USERNAME" || { echo "::error::Configure o secret DOCKERHUB_USERNAME"; exit 1; }
+          test -n "$DOCKERHUB_TOKEN" || { echo "::error::Configure o secret DOCKERHUB_TOKEN"; exit 1; }
+          test -n "$RENDER_STAGING_DEPLOY_HOOK_URL" || { echo "::error::Configure o secret RENDER_STAGING_DEPLOY_HOOK_URL"; exit 1; }
 
       - name: Autenticar no Docker Hub
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
@@ -92,9 +142,8 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/scriptum-ocr
           tags: |
-            type=raw,value=v${{ env.DOCKER_TAG_VERSION }},enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=v${{ env.DOCKER_TAG_VERSION }}-develop,enable=${{ github.ref == 'refs/heads/develop' }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=v${{ env.DOCKER_TAG_VERSION }}
+            type=raw,value=v${{ env.DOCKER_TAG_VERSION }}-homologacao
             type=sha,prefix=sha-
 
       - name: Compilar e publicar imagem Docker
@@ -105,3 +154,62 @@ jobs:
           push: true
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
+
+      - name: Implantar imagem em homologação no Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
+          IMAGE_DIGEST: ${{ steps.build-image.outputs.digest }}
+        run: |
+          IMAGE_URL="docker.io/${DOCKERHUB_USERNAME}/scriptum-ocr@${IMAGE_DIGEST}"
+          curl --fail --silent --show-error --retry 3 --retry-all-errors \
+            --get --data-urlencode "imgURL=${IMAGE_URL}" \
+            "$RENDER_DEPLOY_HOOK_URL"
+
+  implantar-producao:
+    name: Promover imagem de main para produção
+    if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_PRODUCTION_DEPLOY_HOOK_URL }}
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Validar configuração e versão SemVer
+        run: |
+          test -n "$DOCKERHUB_USERNAME" || { echo "::error::Configure o secret DOCKERHUB_USERNAME"; exit 1; }
+          test -n "$RENDER_DEPLOY_HOOK_URL" || { echo "::error::Configure o secret RENDER_PRODUCTION_DEPLOY_HOOK_URL"; exit 1; }
+          VERSION="$(cat VERSION)"
+          if ! python3 - "$VERSION" <<'PY'
+          import re
+          import sys
+
+          pattern = r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$'
+          sys.exit(0 if re.fullmatch(pattern, sys.argv[1]) else 1)
+          PY
+          then
+            echo "::error::VERSION não contém uma versão SemVer válida"
+            exit 1
+          fi
+          echo "DOCKER_TAG_VERSION=${VERSION%%+*}" >> "$GITHUB_ENV"
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verificar se a imagem da versão já foi publicada
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$DOCKERHUB_TOKEN" || { echo "::error::Configure o secret DOCKERHUB_TOKEN"; exit 1; }
+          echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker buildx imagetools inspect \
+            "docker.io/${DOCKERHUB_USERNAME}/scriptum-ocr:v${DOCKER_TAG_VERSION}" >/dev/null
+
+      - name: Implantar versão no Render de produção
+        run: |
+          IMAGE_URL="docker.io/${DOCKERHUB_USERNAME}/scriptum-ocr:v${DOCKER_TAG_VERSION}"
+          curl --fail --silent --show-error --retry 3 --retry-all-errors \
+            --get --data-urlencode "imgURL=${IMAGE_URL}" \
+            "$RENDER_DEPLOY_HOOK_URL"
+
