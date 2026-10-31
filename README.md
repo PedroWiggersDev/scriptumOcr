@@ -135,8 +135,9 @@ instalações existentes, o formato antigo `host:porta` (como `rabbitmq:5672` na
 rede Compose ou `localhost:5672` fora dela) continua aceito com usuário e senha
 separados.
 
-O serviço `rabbitmq-topology` declara exchanges, filas e bindings antes de
-iniciar o OCR, usando as credenciais configuradas no `.env`. Falhas de
+Ao iniciar, o próprio microsserviço declara as exchanges, filas e bindings que
+utiliza caso ainda não existam. A conta RabbitMQ configurada precisa de
+permissão para configurar, publicar e consumir no virtual host. Falhas de
 processamento são rejeitadas pelo consumidor e encaminhadas para
 `ocr-processing-dlq`.
 
@@ -311,23 +312,12 @@ para AMQP. Após o primeiro deploy, copie o **Service Address** exibido em
 **Connect**. No serviço OCR do mesmo workspace e região, configure
 `RABBITMQ_URL` com esse endereço e as credenciais em uma URI `amqp://`, por
 exemplo `amqp://usuario:senha@host/virtual-host`.
-Crie as exchanges, filas e bindings pelo painel Management. Para cada ambiente,
-configure:
 
-1. Em **Exchanges → Add a new exchange**, crie `ocr.processing` e
-   `ocr.reading`, ambos do tipo `direct`, duráveis e sem auto-delete. Crie
-   também `ocr.processing.dlx` do tipo `direct`, durável.
-2. Em **Queues → Add a new queue**, crie a fila `ocr-processing`, durável,
-   com os argumentos:
-   `x-dead-letter-exchange` = `ocr.processing.dlx` (tipo `long string`) e
-   `x-dead-letter-routing-key` = `ocr.processing.failed` (tipo `long string`).
-3. Crie também as filas duráveis `ocr-processing-dlq` e
-   `ocr-reading-return`, sem argumentos.
-4. Em **Exchanges → selecione a exchange → Bindings**, crie:
-   `ocr.processing` → `ocr-processing`, routing key `ocr.processing`;
-   `ocr.reading` → `ocr-reading-return`, routing key `ocr.reading`; e
-   `ocr.processing.dlx` → `ocr-processing-dlq`, routing key
-   `ocr.processing.failed`.
+Ao iniciar, o OCR cria automaticamente as exchanges `ocr.processing`,
+`ocr.reading` e `ocr.processing.dlx`, as filas `ocr-processing`,
+`ocr-processing-dlq` e `ocr-reading-return`, e seus bindings. A fila
+`ocr-processing` é criada com dead-letter exchange `ocr.processing.dlx` e
+routing key `ocr.processing.failed`.
 
 O disco persistente é necessário: sem ele os dados do broker podem ser perdidos
 em reinicializações ou novos deploys. Essa configuração é de instância única e
