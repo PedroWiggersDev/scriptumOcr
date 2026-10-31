@@ -17,24 +17,12 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  rabbitmq-topology:
-    image: curlimages/curl:8.12.1
-    entrypoint: ["/bin/sh", "/scripts/init.sh"]
-    environment:
-      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?Configure RABBITMQ_USERNAME in .env}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Configure RABBITMQ_PASSWORD in .env}
-    volumes:
-      - ./rabbitmq/init.sh:/scripts/init.sh:ro
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    restart: "no"
-
   ocr:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
+      APP_ENV: ${APP_ENV:-production}
       RABBITMQ_URL: ${RABBITMQ_URL:-rabbitmq:5672}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?Configure RABBITMQ_USERNAME in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Configure RABBITMQ_PASSWORD in .env}
@@ -43,8 +31,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      rabbitmq-topology:
-        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

@@ -125,15 +125,25 @@ docker compose up --build -d
 ```
 
 O arquivo `.env` permite configurar `RABBITMQ_URL`, `RABBITMQ_USERNAME` e
-`RABBITMQ_PASSWORD`. `RABBITMQ_URL` usa o formato de endereços aceito pelo
-conector RabbitMQ (`host:porta`, sem `amqp://`), por exemplo
-`rabbitmq:5672` dentro da rede Compose ou `localhost:5672` ao executar o
-serviço fora do Compose. Também aceita uma lista separada por vírgulas.
+`RABBITMQ_PASSWORD`. Para brokers gerenciados, `RABBITMQ_URL` aceita uma URI
+completa, incluindo usuário, senha e virtual host, por exemplo
+`amqps://usuario:senha@broker.exemplo.com/meu-virtual-host`. Use `amqp://` para
+conexões sem TLS e `amqps://` para conexões TLS; caracteres especiais nas
+credenciais devem estar codificados como URL. Nesse formato, não é necessário
+definir `RABBITMQ_USERNAME` ou `RABBITMQ_PASSWORD` no serviço OCR. Para manter
+instalações existentes, o formato antigo `host:porta` (como `rabbitmq:5672` na
+rede Compose ou `localhost:5672` fora dela) continua aceito com usuário e senha
+separados.
 
-O serviço `rabbitmq-topology` declara exchanges, filas e bindings antes de
-iniciar o OCR, usando as credenciais configuradas no `.env`. Falhas de
+Ao iniciar, o próprio microsserviço declara as exchanges, filas e bindings que
+utiliza caso ainda não existam. A conta RabbitMQ configurada precisa de
+permissão para configurar, publicar e consumir no virtual host. Falhas de
 processamento são rejeitadas pelo consumidor e encaminhadas para
 `ocr-processing-dlq`.
+
+O `.env.example` define `APP_ENV=staging`, que deixa a API OCR e Swagger UI
+disponíveis. O endpoint `GET /version` informa a versão em JSON. Sem `APP_ENV`,
+o serviço assume produção.
 
 Publique uma mensagem na fila de processamento:
 
@@ -258,12 +268,19 @@ Proteja `main` e `release/**` no GitHub e exija pull request para integrá-las.
 O gatilho de push também executa se alguém fizer push direto. A branch
 `develop` não está nos gatilhos do workflow.
 
-Em cada serviço Render, configure `RABBITMQ_URL`, `RABBITMQ_USERNAME` e
-`RABBITMQ_PASSWORD` com as credenciais do broker correspondente ao ambiente.
-`RABBITMQ_URL` deve usar o formato `host:porta` aceito pelo conector RabbitMQ;
-não inclua `amqp://`. O Render injeta `PORT` (por padrão, `10000`), que o
-serviço usa para receber tráfego HTTP. O Dockerfile mantém `8080` como padrão
-para execução local.
+Em cada serviço Render, configure `RABBITMQ_URL` como URI completa
+(`amqps://usuario:senha@host/virtual-host`) com as credenciais do broker
+correspondente ao ambiente. O endereço `amqps://` ativa TLS; para conexão sem
+TLS, use `amqp://`. O Render injeta `PORT` (por padrão, `10000`), que o serviço
+usa para receber tráfego HTTP. O Dockerfile mantém `8080` como padrão para
+execução local.
+
+No serviço OCR de homologação, configure `APP_ENV=staging`. Isso mantém os
+endpoints OCR e Swagger UI disponíveis. No serviço OCR de produção, não
+configure `APP_ENV`: o padrão `production` bloqueia os endpoints REST de OCR
+e as rotas Swagger UI/OpenAPI, mantendo `GET /version`, as filas RabbitMQ e os
+endpoints operacionais de health e métricas disponíveis. Assim, o consumo e a
+publicação de mensagens continuam ativos sem expor o OCR via HTTP.
 
 ### RabbitMQ no Render
 
@@ -293,25 +310,14 @@ acesso por IP nas configurações do Render. O broker recebe conexões AMQP pela
 porta `5672` na rede privada do Render; não configure um TCP proxy público
 para AMQP. Após o primeiro deploy, copie o **Service Address** exibido em
 **Connect**. No serviço OCR do mesmo workspace e região, configure
-`RABBITMQ_URL` com esse endereço e a porta, além de
-`RABBITMQ_USERNAME` e `RABBITMQ_PASSWORD` iguais às credenciais do broker.
-Crie as exchanges, filas e bindings pelo painel Management. Para cada ambiente,
-configure:
+`RABBITMQ_URL` com esse endereço e as credenciais em uma URI `amqp://`, por
+exemplo `amqp://usuario:senha@host/virtual-host`.
 
-1. Em **Exchanges → Add a new exchange**, crie `ocr.processing` e
-   `ocr.reading`, ambos do tipo `direct`, duráveis e sem auto-delete. Crie
-   também `ocr.processing.dlx` do tipo `direct`, durável.
-2. Em **Queues → Add a new queue**, crie a fila `ocr-processing`, durável,
-   com os argumentos:
-   `x-dead-letter-exchange` = `ocr.processing.dlx` (tipo `long string`) e
-   `x-dead-letter-routing-key` = `ocr.processing.failed` (tipo `long string`).
-3. Crie também as filas duráveis `ocr-processing-dlq` e
-   `ocr-reading-return`, sem argumentos.
-4. Em **Exchanges → selecione a exchange → Bindings**, crie:
-   `ocr.processing` → `ocr-processing`, routing key `ocr.processing`;
-   `ocr.reading` → `ocr-reading-return`, routing key `ocr.reading`; e
-   `ocr.processing.dlx` → `ocr-processing-dlq`, routing key
-   `ocr.processing.failed`.
+Ao iniciar, o OCR cria automaticamente as exchanges `ocr.processing`,
+`ocr.reading` e `ocr.processing.dlx`, as filas `ocr-processing`,
+`ocr-processing-dlq` e `ocr-reading-return`, e seus bindings. A fila
+`ocr-processing` é criada com dead-letter exchange `ocr.processing.dlx` e
+routing key `ocr.processing.failed`.
 
 O disco persistente é necessário: sem ele os dados do broker podem ser perdidos
 em reinicializações ou novos deploys. Essa configuração é de instância única e
@@ -351,10 +357,11 @@ Configure no `.env` ou no ambiente de execução:
 
 | Variável | Padrão |
 |---|---|
-| `RABBITMQ_URL` | `rabbitmq:5672` no Compose; `localhost:5672` fora dele |
-| `RABBITMQ_USERNAME` | Obrigatório no Compose |
-| `RABBITMQ_PASSWORD` | Obrigatório no Compose |
+| `RABBITMQ_URL` | URI completa (`amqp://` ou `amqps://`) ou endereço legado `host:porta` |
+| `RABBITMQ_USERNAME` | Usuário do formato legado; exigido pelo Compose para criar o broker local |
+| `RABBITMQ_PASSWORD` | Senha do formato legado; exigida pelo Compose para criar o broker local |
 | `PORT` | `8080` local; definido pelo Render no serviço hospedado |
+| `APP_ENV` | `staging` na homologação; omitido em produção (padrão `production`) |
 | `RABBITMQ_AMQP_PORT` | `5672` (porta publicada no host) |
 | `RABBITMQ_MANAGEMENT_PORT` | `15672` |
 | `OCR_HTTP_PORT` | `8080` |
