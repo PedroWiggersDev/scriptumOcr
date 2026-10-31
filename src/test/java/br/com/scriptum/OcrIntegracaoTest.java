@@ -20,6 +20,8 @@ import java.io.InputStream;
 import java.util.Base64;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -79,6 +81,40 @@ class OcrIntegracaoTest {
                 .body("documentId", equalTo(7357))
                 .body("paragraphs.size()", greaterThan(0))
                 .body("confidence", greaterThan(0f));
+    }
+
+    @Test
+    void disponibilizaEndpointDeVersao() {
+        given()
+                .when()
+                .get("/version")
+                .then()
+                .statusCode(200)
+                .body("version", not(emptyOrNullString()));
+    }
+
+    @Test
+    void mantemRotasOcrAcessiveisNoPerfilDeHomologacao() {
+        given()
+                .when()
+                .get("/ocr")
+                .then()
+                .statusCode(405);
+    }
+
+    @Test
+    void disponibilizaSwaggerUiEOpenApiEmHomologacao() {
+        given()
+                .when()
+                .get("/q/swagger-ui/")
+                .then()
+                .statusCode(200);
+
+        given()
+                .when()
+                .get("/q/openapi")
+                .then()
+                .statusCode(200);
     }
 
     private String aguardaPayload() {

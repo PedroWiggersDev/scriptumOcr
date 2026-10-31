@@ -135,6 +135,10 @@ iniciar o OCR, usando as credenciais configuradas no `.env`. Falhas de
 processamento são rejeitadas pelo consumidor e encaminhadas para
 `ocr-processing-dlq`.
 
+O `.env.example` define `APP_ENV=staging`, que deixa a API OCR e Swagger UI
+disponíveis. O endpoint `GET /version` informa a versão em JSON. Sem `APP_ENV`,
+o serviço assume produção.
+
 Publique uma mensagem na fila de processamento:
 
 ```bash
@@ -265,6 +269,13 @@ não inclua `amqp://`. O Render injeta `PORT` (por padrão, `10000`), que o
 serviço usa para receber tráfego HTTP. O Dockerfile mantém `8080` como padrão
 para execução local.
 
+No serviço OCR de homologação, configure `APP_ENV=staging`. Isso mantém os
+endpoints OCR e Swagger UI disponíveis. No serviço OCR de produção, não
+configure `APP_ENV`: o padrão `production` bloqueia os endpoints REST de OCR
+e as rotas Swagger UI/OpenAPI, mantendo `GET /version`, as filas RabbitMQ e os
+endpoints operacionais de health e métricas disponíveis. Assim, o consumo e a
+publicação de mensagens continuam ativos sem expor o OCR via HTTP.
+
 ### RabbitMQ no Render
 
 Como homologação e produção usam os mesmos nomes de filas, crie **um Web
@@ -355,6 +366,7 @@ Configure no `.env` ou no ambiente de execução:
 | `RABBITMQ_USERNAME` | Obrigatório no Compose |
 | `RABBITMQ_PASSWORD` | Obrigatório no Compose |
 | `PORT` | `8080` local; definido pelo Render no serviço hospedado |
+| `APP_ENV` | `staging` na homologação; omitido em produção (padrão `production`) |
 | `RABBITMQ_AMQP_PORT` | `5672` (porta publicada no host) |
 | `RABBITMQ_MANAGEMENT_PORT` | `15672` |
 | `OCR_HTTP_PORT` | `8080` |
