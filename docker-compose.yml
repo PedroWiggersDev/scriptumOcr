@@ -35,6 +35,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      APP_ENV: ${APP_ENV:-production}
       RABBITMQ_URL: ${RABBITMQ_URL:-rabbitmq:5672}
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?Configure RABBITMQ_USERNAME in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Configure RABBITMQ_PASSWORD in .env}
