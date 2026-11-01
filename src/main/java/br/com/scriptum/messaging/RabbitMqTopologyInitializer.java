@@ -35,7 +35,15 @@ public class RabbitMqTopologyInitializer {
     @ConfigProperty(name = "rabbitmq-ssl-enabled")
     boolean sslEnabled;
 
+    @ConfigProperty(name = "rabbitmq-topology.enabled", defaultValue = "true")
+    boolean topologyEnabled;
+
     void initialize(@Observes @Priority(1) StartupEvent event) {
+        if (!topologyEnabled) {
+            LOG.info("Declaração da topologia RabbitMQ desabilitada pela configuração");
+            return;
+        }
+
         ConnectionFactory factory = new ConnectionFactory();
         factory.setUsername(username);
         factory.setPassword(password);
