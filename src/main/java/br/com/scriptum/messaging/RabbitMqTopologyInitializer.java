@@ -65,21 +65,25 @@ public class RabbitMqTopologyInitializer {
         Address[] brokerAddresses = Address.parseAddresses(addresses);
         try (Connection connection = factory.newConnection(brokerAddresses);
              Channel channel = connection.createChannel()) {
-            channel.exchangeDeclare("ocr.processing", "direct", true, false, Map.of());
-            channel.exchangeDeclare("ocr.reading", "direct", true, false, Map.of());
-            channel.exchangeDeclare("ocr.processing.dlx", "direct", true, false, Map.of());
-
-            channel.queueDeclare("ocr-processing", true, false, false, Map.of(
-                    "x-dead-letter-exchange", "ocr.processing.dlx",
-                    "x-dead-letter-routing-key", "ocr.processing.failed"));
-            channel.queueDeclare("ocr-processing-dlq", true, false, false, Map.of());
-            channel.queueDeclare("ocr-reading-return", true, false, false, Map.of());
-
-            channel.queueBind("ocr-processing", "ocr.processing", "ocr.processing");
-            channel.queueBind("ocr-reading-return", "ocr.reading", "ocr.reading");
-            channel.queueBind("ocr-processing-dlq", "ocr.processing.dlx", "ocr.processing.failed");
+            declareTopology(channel);
         }
 
         LOG.infof("Topologia RabbitMQ declarada no virtual host '%s'", virtualHost);
+    }
+
+    static void declareTopology(Channel channel) throws IOException {
+        channel.exchangeDeclare("ocr.processing", "direct", true, false, Map.of());
+        channel.exchangeDeclare("ocr.reading", "direct", true, false, Map.of());
+        channel.exchangeDeclare("ocr.processing.dlx", "direct", true, false, Map.of());
+
+        channel.queueDeclare("ocr-processing", true, false, false, Map.of(
+                "x-dead-letter-exchange", "ocr.processing.dlx",
+                "x-dead-letter-routing-key", "ocr.processing.failed"));
+        channel.queueDeclare("ocr-processing-dlq", true, false, false, Map.of());
+        channel.queueDeclare("ocr-reading-return", true, false, false, Map.of());
+
+        channel.queueBind("ocr-processing", "ocr.processing", "ocr.processing");
+        channel.queueBind("ocr-reading-return", "ocr.reading", "ocr.reading");
+        channel.queueBind("ocr-processing-dlq", "ocr.processing.dlx", "ocr.processing.failed");
     }
 }
