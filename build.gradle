@@ -33,6 +33,12 @@ tasks.register('integrationTest', Test) {
 }
 
 tasks.withType(Test).configureEach {
+    def homebrewLibraryPaths = ['/opt/homebrew/lib', '/usr/local/lib']
+            .findAll { file(it).isDirectory() }
+    if (!homebrewLibraryPaths.isEmpty()) {
+        systemProperty 'jna.library.path', homebrewLibraryPaths.join(File.pathSeparator)
+    }
+
     testLogging {
         events 'started', 'passed', 'skipped', 'failed'
         exceptionFormat 'full'
@@ -129,15 +135,22 @@ tasks.register('jacocoSonarReport', JacocoReport) {
 }
 
 jacocoTestCoverageVerification {
+    dependsOn tasks.named('unitTest'), tasks.named('integrationTest')
+    executionData tasks.named('unitTest').get(), tasks.named('integrationTest').get()
+    sourceSets sourceSets.main
     violationRules {
         rule {
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 0.50
+                minimum = 0.80
             }
         }
     }
+}
+
+tasks.named('jacocoSonarReport') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 check.dependsOn jacocoTestCoverageVerification

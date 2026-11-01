@@ -5,6 +5,7 @@ import br.com.scriptum.DTO.response.OcrResponse;
 import br.com.scriptum.service.decodificaImagem.DecodificadorImagem;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
 import net.sourceforge.tess4j.Word;
@@ -32,8 +33,14 @@ public class OcrService {
      *
      * @param decodificadorImagem decodificador de imagens Base64
      */
+    @Inject
     public OcrService(DecodificadorImagem decodificadorImagem) {
         this.decodificadorImagem = decodificadorImagem;
+    }
+
+    OcrService(DecodificadorImagem decodificadorImagem, Tesseract motorOcr) {
+        this.decodificadorImagem = decodificadorImagem;
+        this.motorOcr = motorOcr;
     }
 
     /**
@@ -44,8 +51,8 @@ public class OcrService {
         LOG.info("Inicializando o motor OCR Tesseract");
         try {
             Path caminhoDadosTesseract = Files.createTempDirectory("scriptum-tessdata");
-            copiarRecurso("tessdata/por.traineddata", caminhoDadosTesseract);
-            copiarRecurso("tessdata/eng.traineddata", caminhoDadosTesseract);
+            copiarRecurso("tessdata/por.traineddata", caminhoDadosTesseract, getClass().getClassLoader());
+            copiarRecurso("tessdata/eng.traineddata", caminhoDadosTesseract, getClass().getClassLoader());
 
             motorOcr = new Tesseract();
             motorOcr.setDatapath(caminhoDadosTesseract.toString());
@@ -118,12 +125,11 @@ public class OcrService {
      * @param destino diretório de destino
      * @throws IOException quando o recurso não pode ser lido ou copiado
      */
-    private void copiarRecurso(String nomeRecurso, Path destino) throws IOException {
+    static void copiarRecurso(String nomeRecurso, Path destino, ClassLoader classLoader) throws IOException {
         String nomeArquivo = Path.of(nomeRecurso).getFileName().toString();
         Path destinoArquivo = destino.resolve(nomeArquivo);
 
-        try (InputStream entrada = getClass().getClassLoader()
-                .getResourceAsStream(nomeRecurso)) {
+        try (InputStream entrada = classLoader.getResourceAsStream(nomeRecurso)) {
             if (entrada == null) {
                 throw new IOException("recurso do Tesseract não encontrado: " + nomeRecurso);
             }
