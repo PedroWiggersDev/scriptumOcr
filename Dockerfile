@@ -11,7 +11,7 @@ RUN sed -i 's/\r$//' gradlew
 RUN ./gradlew --no-daemon dependencies
 
 COPY src src
-RUN ./gradlew --no-daemon clean build -x test
+RUN ./gradlew --no-daemon clean quarkusBuild
 
 FROM eclipse-temurin:21-jre-noble AS runtime
 
