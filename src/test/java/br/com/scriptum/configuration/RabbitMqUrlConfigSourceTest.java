@@ -42,4 +42,28 @@ class RabbitMqUrlConfigSourceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> RabbitMqUrlConfigSource.parseUrl("amqps://rabbitmq/tenant"));
     }
+
+    @UnitTest
+    @Test
+    void rejeitaUriMalformadaOuComComponentesNaoSuportados() {
+        assertThrows(IllegalArgumentException.class,
+                () -> RabbitMqUrlConfigSource.parseUrl("amqps://%"));
+        assertThrows(IllegalArgumentException.class,
+                () -> RabbitMqUrlConfigSource.parseUrl("amqps://user:password@host/tenant?option=value"));
+        assertThrows(IllegalArgumentException.class,
+                () -> RabbitMqUrlConfigSource.parseUrl("amqps://user:password@host/tenant#fragment"));
+        assertThrows(IllegalArgumentException.class,
+                () -> RabbitMqUrlConfigSource.parseUrl("amqps://:password@host/tenant"));
+        assertThrows(IllegalArgumentException.class,
+                () -> RabbitMqUrlConfigSource.parseUrl("amqps://user:password@host:70000/tenant"));
+    }
+
+    @UnitTest
+    @Test
+    void usaVirtualHostPadraoQuandoUriNaoTemCaminho() {
+        Map<String, String> properties = RabbitMqUrlConfigSource.parseUrl(
+                "amqp://user:password@rabbitmq");
+
+        assertEquals("/", properties.get("rabbitmq-virtual-host"));
+    }
 }
