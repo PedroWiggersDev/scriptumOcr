@@ -33,6 +33,12 @@ tasks.register('integrationTest', Test) {
 }
 
 tasks.withType(Test).configureEach {
+    def homebrewLibraryPaths = ['/opt/homebrew/lib', '/usr/local/lib']
+            .findAll { file(it).isDirectory() }
+    if (!homebrewLibraryPaths.isEmpty()) {
+        systemProperty 'jna.library.path', homebrewLibraryPaths.join(File.pathSeparator)
+    }
+
     testLogging {
         events 'started', 'passed', 'skipped', 'failed'
         exceptionFormat 'full'
