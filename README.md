@@ -386,3 +386,4 @@ Usando build nativo em container:
   -Dquarkus.native.enabled=true \
   -Dquarkus.native.container-build=true
 ```
+teste
